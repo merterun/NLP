@@ -3,8 +3,6 @@ test <- read.delim("test.txt", header = FALSE, stringsAsFactors = FALSE, sep = "
 train <- read.delim("train.txt", header = FALSE, stringsAsFactors = FALSE, sep = ";", col.names = c("text", "emotion"))
 val <- read.delim("val.txt", header = FALSE, stringsAsFactors = FALSE, sep = ";", col.names = c("text", "emotion"))
 
-# Combine all data into one data frame
-all <- rbind(test, train, val)
 
 # Check out the data frames
 head(val)
@@ -20,11 +18,17 @@ library(tidyverse)
 
 library(stringr)
 
-# Check for uppercase characters
-grepl("^[[:upper:]]+$", test)
-grepl("^[[:upper:]]+$", train)
-grepl("^[[:upper:]]+$", val)
+# Combine all data into one data frame
+all <- rbind(test, train, val)
 
+# Check for uppercase characters
+grepl("^[[:upper:]]+$", all)
+
+
+library(tidytext)
+
+# load the stop words from the tidytext package
+stop_words <- tidytext::stop_words
 
 library(RColorBrewer)
 
@@ -58,25 +62,6 @@ ggplot(counts, aes(x = emotion, y = count, fill = emotion)) +
         legend.title = element_blank(),
         legend.position = "none")
 
-library(tidytext)
-
-# load the stop words from the tidytext package
-stop_words <- tidytext::stop_words
-
-# remove stop words from the text column in each data frame
-test_clean <- test %>%
-  unnest_tokens(word, text) %>%
-  anti_join(stop_words, by = "word")
-
-train_clean <- train %>%
-  unnest_tokens(word, text) %>%
-  anti_join(stop_words, by = "word")
-
-val_clean <- val %>%
-  unnest_tokens(word, text) %>%
-  anti_join(stop_words, by = "word")
-
-all_clean <- bind_rows(train_clean, test_clean, val_clean)
 
 # group the words by emotion and count their frequency
 emotion_counts <- all_clean %>%
@@ -93,6 +78,11 @@ head(emotion_counts)
 
 all_clean <- all_clean %>%
   filter(!word %in% c("im", "feel", "feeling"))
+
+# Remove stop words from the text column
+all_clean <- all %>%
+  unnest_tokens(word, text) %>%
+  anti_join(stop_words, by = "word")
 
 library(packcircles)
 library(viridis)
@@ -125,9 +115,22 @@ for (emotion in unique(all_clean$emotion)) {
   print(plot)
 }
 
-  
-  
 
 
-library(textstem)
-library(tokenizers)
+# Stemming
+all_stem <- all_clean %>%
+  mutate(word_stem = wordStem(word, language = "porter")) %>%
+  select(-word) %>%
+  rename(word = word_stem)
+
+# Lemmatization
+all_lem <- all_clean %>%
+  mutate(word_lem = lemmatize_words(word, language = "en")) %>%
+  select(-word) %>%
+  rename(word = word_lem)
+
+# POS tagging using UDPipe
+all_pos <- udpipe(all_lem$word, object = ud_model, tagger = "default")
+
+# Print the first 6 rows of the POS tagging results
+head(all_pos)
