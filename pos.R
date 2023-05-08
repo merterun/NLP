@@ -9,4 +9,6 @@ test_pos <- udpipe(test_lem$word, object = ud_model, tagger = "default")
 train_pos <- udpipe(train_lem$word, object = ud_model, tagger = "default")
 val_pos <- udpipe(val_lem$word, object = ud_model, tagger = "default")
 
-head(test_pos)
+
+
+head(train_pos)

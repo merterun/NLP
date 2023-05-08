@@ -124,10 +124,3 @@ for (emotion in unique(all_clean$emotion)) {
     theme(plot.title = element_text(size = 20))  
   print(plot)
 }
-
-  
-  
-
-
-library(textstem)
-library(tokenizers)

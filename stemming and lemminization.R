@@ -33,5 +33,3 @@ val_lem <- val_clean %>%
   mutate(word_lem = lemmatize_words(word, language = "en")) %>%
   select(-word) %>%
   rename(word = word_lem)
-
-h

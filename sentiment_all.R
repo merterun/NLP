@@ -24,13 +24,10 @@ all <- rbind(test, train, val)
 # Check for uppercase characters
 grepl("^[[:upper:]]+$", all)
 
-
 library(tidytext)
 
 # load the stop words from the tidytext package
 stop_words <- tidytext::stop_words
-
-library(RColorBrewer)
 
 # Count the number of occurrences of each emotion
 counts <- all %>%
@@ -41,6 +38,9 @@ counts
 
 # Get unique emotions from data_all
 unique_emotions <- unique(all$emotion)
+
+
+library(RColorBrewer)
 
 # Define the palette using unique emotions
 my_palette <- colorRampPalette(brewer.pal(length(unique_emotions), "Paired"))(length(unique_emotions))
@@ -63,6 +63,12 @@ ggplot(counts, aes(x = emotion, y = count, fill = emotion)) +
         legend.position = "none")
 
 
+
+# Remove stop words from the text column
+all_clean <- all %>%
+  unnest_tokens(word, text) %>%
+  anti_join(stop_words, by = "word")
+
 # group the words by emotion and count their frequency
 emotion_counts <- all_clean %>%
   group_by(emotion) %>%
@@ -79,10 +85,6 @@ head(emotion_counts)
 all_clean <- all_clean %>%
   filter(!word %in% c("im", "feel", "feeling"))
 
-# Remove stop words from the text column
-all_clean <- all %>%
-  unnest_tokens(word, text) %>%
-  anti_join(stop_words, by = "word")
 
 library(packcircles)
 library(viridis)
@@ -116,7 +118,6 @@ for (emotion in unique(all_clean$emotion)) {
 }
 
 
-
 # Stemming
 all_stem <- all_clean %>%
   mutate(word_stem = wordStem(word, language = "porter")) %>%
@@ -129,8 +130,72 @@ all_lem <- all_clean %>%
   select(-word) %>%
   rename(word = word_lem)
 
+library(udpipe)
+
+# download and load the English model for UDPipe
+ud_model <- udpipe_download_model(language = "english")
+ud_model <- udpipe_load_model("english-ewt-ud-2.5-191206.udpipe")
+
 # POS tagging using UDPipe
 all_pos <- udpipe(all_lem$word, object = ud_model, tagger = "default")
 
-# Print the first 6 rows of the POS tagging results
 head(all_pos)
+
+# Identify the co-occurrence of emotions and words or phrases.
+
+# Create a dataframe of emotion-word pairs
+emotion_word <- all_pos %>%
+  filter(upos %in% c("NOUN", "VERB", "ADJ")) %>%
+  select(sent_id, word, emotion) %>%
+  group_by(emotion, word) %>%
+  summarize(count = n()) %>%
+  arrange(desc(count))
+
+# Create a co-occurrence matrix
+co_mat <- emotion_word %>%
+  filter(count > 1) %>%
+  spread(emotion, count, fill = 0)
+
+# Visualize the co-occurrence matrix as a heatmap
+ggplot(data = co_mat, aes(x = emotion, y = word, fill = joy)) +
+  geom_tile() +
+  scale_fill_gradient(low = "white", high = "red") +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +
+  labs(x = "Emotion", y = "Word", title = "Co-occurrence of Emotions and Words")
+
+
+# Analyze the distribution of sentence length and word count across emotions.
+
+# Create a dataframe of sentence lengths and word counts by emotion
+sent_word_count <- all_pos %>%
+  group_by(emotion, sent_id) %>%
+  summarize(sent_len = n(), word_count = n_distinct(word)) %>%
+  ungroup()
+
+# Visualize the distribution of sentence lengths by emotion
+ggplot(data = sent_word_count, aes(x = emotion, y = sent_len)) +
+  geom_boxplot() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +
+  labs(x = "Emotion", y = "Sentence Length", title = "Distribution of Sentence Length by Emotion")
+
+# Visualize the distribution of word counts by emotion
+ggplot(data = sent_word_count, aes(x = emotion, y = word_count)) +
+  geom_boxplot() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +
+  labs(x = "Emotion", y = "Word Count", title = "Distribution of Word Count by Emotion")
+
+
+# Explore potential correlations between emotions and other variables in the dataset.
+
+# Create a dataframe of emotion and age
+emotion_age <- all_clean %>%
+  select(sent_id, emotion) %>%
+  left_join(metadata, by = "sent_id") %>%
+  select(emotion, age)
+
+# Visualize the distribution of age by emotion
+ggplot(data = emotion_age, aes(x = emotion, y = age)) +
+  geom_boxplot() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +
+  labs(x = "Emotion", y = "Age", title = "Distribution of Age by Emotion")
+
